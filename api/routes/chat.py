@@ -47,6 +47,8 @@ async def send_message(request: ChatRequest, user: dict = Depends(get_current_us
         active_conversations[conv_id] = []
 
     messages = active_conversations[conv_id]
+    # print(f"[DEBUG] conv_id={conv_id}, messages count={len(messages)}")
+    config = {"configurable": {"thread_id": conv_id}}
     messages.append(HumanMessage(content=request.message))
 
     await save_message(conv_id, role, "user", request.message, user["email"])
@@ -72,7 +74,7 @@ async def send_message(request: ChatRequest, user: dict = Depends(get_current_us
                 doctor, doc_user = doc_row
                 user_info = f"Name: {doc_user.full_name}, Specialization: {doctor.specialization}"
 
-    result = await app.ainvoke({"messages": messages, "role": role, "user_info": user_info})
+    result = await app.ainvoke({"messages": messages, "role": role, "user_info": user_info}, config=config)
     messages = result["messages"]
     active_conversations[conv_id] = messages
 

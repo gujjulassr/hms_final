@@ -4,6 +4,13 @@ from langgraph.graph.message import add_messages
 from agent.patient_agent import patient_app
 from agent.doctor_agent import doctor_app
 from agent.staff_agent import staff_app
+from langgraph.checkpoint.memory import MemorySaver   
+
+
+
+
+memory = MemorySaver()
+# app = graph.compile(checkpointer=memory)
 
 
 class SupervisorState(TypedDict):
@@ -32,4 +39,4 @@ graph.add_node("supervisor", route_to_agent)
 graph.set_entry_point("supervisor")
 graph.add_edge("supervisor", END)
 
-app = graph.compile()
+app = graph.compile(checkpointer=memory)

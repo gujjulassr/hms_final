@@ -102,10 +102,18 @@ def render(api_url, headers, role="doctor"):
                         priority_opts = ["NORMAL", "HIGH", "CRITICAL"]
                         current_idx = priority_opts.index(p["priority"]) if p["priority"] in priority_opts else 0
                         new_priority = st.selectbox("Priority", priority_opts, index=current_idx, key=f"pri_{p['uhid']}", label_visibility="collapsed")
+                        # if new_priority != p["priority"]:
+                        #     requests.post(f"{api_url}/api/doctor/set-priority",
+                        #         json={"patient_uhid": p["uhid"], "priority": new_priority}, headers=headers)
+                        #     st.rerun()
+
                         if new_priority != p["priority"]:
-                            requests.post(f"{api_url}/api/doctor/set-priority",
-                                json={"patient_uhid": p["uhid"], "priority": new_priority}, headers=headers)
-                            st.rerun()
+                              r = requests.post(f"{api_url}/api/doctor/set-priority",
+                                  json={"patient_uhid": p["uhid"], "priority": new_priority}, headers=headers)
+                              if r.status_code == 200:                                                                                                                      
+                                  st.success(f"Priority set to {new_priority}")
+                              else:                                                                                                                                         
+                                  st.error(r.json().get("detail", "Failed")) 
                     with col3:
                         if p["status"] == "checked_in":
                             st.warning("Waiting")
