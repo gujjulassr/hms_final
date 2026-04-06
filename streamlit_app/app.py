@@ -150,7 +150,7 @@ else:
     page = st.session_state.page
 
     if page == "chat":
-        chat.render(send_message)
+        chat.render(send_message, API_URL, api_headers())
     elif page == "appointments":
         appointments.render(API_URL, api_headers())
     elif page == "profile":

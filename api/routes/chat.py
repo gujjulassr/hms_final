@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from langchain_core.messages import HumanMessage
 from agent.graph import app
-from config.mongodb import save_message, get_history, clear_history, new_conversation_id
+from config.mongodb import get_user_conversations, save_message, get_history, clear_history, new_conversation_id
 from services.auth import decode_token
 from sqlalchemy import select
 from models.patient import Patient
@@ -49,7 +49,7 @@ async def send_message(request: ChatRequest, user: dict = Depends(get_current_us
     messages = active_conversations[conv_id]
     messages.append(HumanMessage(content=request.message))
 
-    await save_message(conv_id, role, "user", request.message)
+    await save_message(conv_id, role, "user", request.message, user["email"])
 
     # Get user info for context
     user_info = f"email: {user['email']}, role: {role}"
@@ -78,7 +78,7 @@ async def send_message(request: ChatRequest, user: dict = Depends(get_current_us
 
     bot_reply = messages[-1].content
 
-    await save_message(conv_id, role, "bot", bot_reply)
+    await save_message(conv_id, role, "bot", bot_reply, user["email"])
 
     return ChatResponse(reply=bot_reply, conversation_id=conv_id)
 
@@ -101,3 +101,10 @@ async def clear_chat(conversation_id: str, user: dict = Depends(get_current_user
 async def new_chat(user: dict = Depends(get_current_user)):
     conv_id = new_conversation_id()
     return {"conversation_id": conv_id}
+
+
+
+@router.get("/conversations")
+async def list_conversations(user: dict = Depends(get_current_user)):                                                                                                     
+    convs = await get_user_conversations(user["email"])
+    return {"conversations": convs} 

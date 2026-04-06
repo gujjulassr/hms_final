@@ -1,7 +1,8 @@
+import requests
 import streamlit as st
 
 
-def render(send_message):
+def render(send_message,API_URL, api_headers):
     st.title("HMS Chatbot")
 
     # Chat history
@@ -27,3 +28,22 @@ def render(send_message):
 
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         st.rerun()
+
+
+    st.divider()                                                                                                                                                              
+    st.write("**Recent Chats**")                                                                                                                                            
+    conv_res = requests.get(f"{API_URL}/api/chat/conversations", headers=api_headers)
+    if conv_res.status_code == 200:                                                                                                                                           
+        for conv in conv_res.json()["conversations"]:                                                                                                                         
+            if st.button(conv["preview"][:30] + "...", key=f"conv_{conv['id']}"):                                                                                             
+                st.session_state.conversation_id = conv["id"]                                                                                                                 
+                # Load messages                                                                                                                                               
+                hist_res = requests.get(f"{API_URL}/api/chat/history/{conv['id']}", headers=api_headers)                                                                    
+                if hist_res.status_code == 200:                                                                                                                               
+                    from langchain_core.messages import HumanMessage, AIMessage                                                                                             
+                    st.session_state.chat_history = []                                                                                                                        
+                    for msg in hist_res.json()["messages"]:                                                                                                                   
+                        role = "user" if msg["sender"] == "user" else "assistant"
+                        st.session_state.chat_history.append({"role": role, "content": msg["content"]})                                                                       
+                st.session_state.page = "chat"                                                                                                                              
+                st.rerun()    
