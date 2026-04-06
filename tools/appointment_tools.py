@@ -245,12 +245,16 @@ async def cancel_appointment(patient_uhid: str, doctor_name: str) -> str:
         appt, patient, session, doctor, doc_user = None, None, None, None, None
         for row in rows:                                                                                                                                                  
             row_appt, row_patient, row_session, row_doctor, row_doc_user = row                                                                                          
-            if row_session.session_date > date.today():                                                                                                                   
-                appt, patient, session, doctor, doc_user = row_appt, row_patient, row_session, row_doctor, row_doc_user
-                break                                                                                                                                                     
-            if row_session.session_date == date.today() and row_appt.slot_time >= datetime.now().time():                                                                
-                appt, patient, session, doctor, doc_user = row_appt, row_patient, row_session, row_doctor, row_doc_user                                                   
-                break                                                                                                                                                   
+            # if row_session.session_date > date.today():                                                                                                                   
+            #     appt, patient, session, doctor, doc_user = row_appt, row_patient, row_session, row_doctor, row_doc_user
+            #     break                                                                                                                                                     
+            # if row_session.session_date == date.today() and row_appt.slot_time >= datetime.now().time():                                                                
+            #     appt, patient, session, doctor, doc_user = row_appt, row_patient, row_session, row_doctor, row_doc_user                                                   
+            #     break       
+            # 
+            if row_session.status in ["active", "scheduled"]:                                                                                                             
+                  appt, patient, session, doctor, doc_user = row_appt, row_patient, row_session, row_doctor, row_doc_user                                                   
+                  break                                                                                                                                               
                                                                                                                                                                         
         if not appt:                                                                                                                                                      
             return "All booked appointments have already passed."

@@ -46,6 +46,8 @@ async def staff_chatbot(state: StaffState):
         CRITICAL: complete_session and cancel_session are DESTRUCTIVE actions. ONLY use them when explicitly asked to 'complete session', 'end session', or 'cancel session'.     
         NEVER use them when asked about overtime, details, or info.
                                
+       CRITICAL: emergency_book creates a new emergency appointment. Only use it when explicitly asked to 'book emergency', 'create emergency', or 'add emergency'. If asked 'is there any emergency' or 'show emergency', use get_queue instead.
+                               
 
         Tool selection rules:                                                                                                                                                     
             - 'all patients' or 'list patients' → use search_patients with empty string.                                                                                              
