@@ -69,13 +69,18 @@ async def checkin_patient(patient_uhid: str) -> str:
 
         await log_action(db, patient.user_id, "CHECKIN", "appointment", appt.id, {"uhid": patient_uhid})
 
-        # Get patient email for notification
+        # Get patient email and doctor name for notification
         pat_user_result = await db.execute(select(User).where(User.id == patient.user_id))
         pat_user = pat_user_result.scalars().first()
+        doc_user_result = await db.execute(
+            select(User).join(Doctor, Doctor.user_id == User.id).join(Session, Session.doctor_id == Doctor.id).where(Session.id == appt.session_id)
+        )
+        doc_user = doc_user_result.scalars().first()
         await db.commit()
 
     if pat_user:
-        await notify_checkin(pat_user.email, pat_user.full_name, "Doctor", 15)
+        doc_name = doc_user.full_name if doc_user else "Doctor"
+        await notify_checkin(pat_user.email, pat_user.full_name, doc_name, 15)
 
     return f"Patient {patient_uhid} checked in successfully at {appt.checked_in_at.strftime('%H:%M')}."
 
@@ -272,13 +277,18 @@ async def complete_appointment(patient_uhid: str, notes: str = "") -> str:
 
         await log_action(db, patient.user_id, "COMPLETE", "appointment", appt.id, {"uhid": patient_uhid, "notes": notes})
 
-        # Get patient email for feedback notification
+        # Get patient email and doctor name for feedback notification
         pat_user_result = await db.execute(select(User).where(User.id == patient.user_id))
         pat_user = pat_user_result.scalars().first()
+        doc_user_result = await db.execute(
+            select(User).join(Doctor, Doctor.user_id == User.id).join(Session, Session.doctor_id == Doctor.id).where(Session.id == appt.session_id)
+        )
+        doc_user = doc_user_result.scalars().first()
         await db.commit()
 
     if pat_user:
-        await notify_feedback(pat_user.email, pat_user.full_name, "Doctor")
+        doc_name = doc_user.full_name if doc_user else "Doctor"
+        await notify_feedback(pat_user.email, pat_user.full_name, doc_name)
 
     return f"Appointment completed for {patient_uhid} at {appt.completed_at.strftime('%H:%M')}."
 

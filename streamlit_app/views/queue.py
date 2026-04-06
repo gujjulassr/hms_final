@@ -161,6 +161,25 @@ def render(api_url, headers, role="doctor"):
                                 json={"patient_uhid": p["uhid"]}, headers=headers)   
                             st.rerun()
 
+            # Propagated patients (from completed sessions)
+            if data.get("propagated_queue"):
+                st.divider()
+                st.subheader("Propagated — From Previous Session")
+                for p in data["propagated_queue"]:
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    with col1:
+                        st.write(f"**{p['name']}** ({p['uhid']}) — {p['age_group']}")
+                        st.caption(f"From {p['original_session']} at {p['original_time']}")
+                    with col2:
+                        st.write(f"Priority: {p['priority']}")
+                        if p["is_emergency"]:
+                            st.error("EMERGENCY")
+                    with col3:
+                        if st.button("Call", key=f"pcall_{p['uhid']}"):
+                            requests.post(f"{api_url}/api/doctor/call-patient",
+                                json={"patient_uhid": p["uhid"]}, headers=headers)
+                            st.rerun()
+
     # Auto-refresh
     if auto:
         import time

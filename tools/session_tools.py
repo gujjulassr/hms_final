@@ -189,6 +189,7 @@ async def complete_session(doctor_name: str) -> str:
         )
         next_session = next_session_result.scalars().first()
 
+        from services.notifications.service import notify_no_show
         for appt, patient in pending:
             if appt.status == "booked":
                 # Never checked in → no_show
@@ -196,6 +197,11 @@ async def complete_session(doctor_name: str) -> str:
                 patient.risk_score += 20
                 await log_action(db, patient.user_id, "NO_SHOW", "appointment", appt.id, {"risk_score": patient.risk_score})
                 no_show_count += 1
+                # Send no-show notification
+                pat_user_r = await db.execute(select(User).where(User.id == patient.user_id))
+                pat_user = pat_user_r.scalars().first()
+                if pat_user:
+                    await notify_no_show(pat_user.email, pat_user.full_name, doc_user.full_name, patient.risk_score)
 
             elif appt.status == "checked_in":
                 if next_session:
@@ -326,9 +332,18 @@ async def cancel_session(doctor_name: str) -> str:
         )
         appts = appt_result.scalars().all()
         cancelled_count = 0
+        from services.notifications.service import notify_session_cancelled
         for appt in appts:
             appt.status = "cancelled"
             cancelled_count += 1
+            # Notify patient about session cancellation
+            pat_result = await db.execute(
+                select(Patient, User).join(User, Patient.user_id == User.id).where(Patient.id == appt.patient_id)
+            )
+            pat_row = pat_result.first()
+            if pat_row:
+                pat, pat_user = pat_row
+                await notify_session_cancelled(pat_user.email, pat_user.full_name, doc_user.full_name, str(session.session_date))
 
         session.status = "cancelled"
         await log_action(db, doc_user.id, "CANCEL_SESSION", "session", session.id, {"doctor": doc_user.full_name, "cancelled_appointments": cancelled_count})

@@ -184,6 +184,35 @@ async def get_doctor_queue(doctor_name: str = "", user: dict = Depends(get_curre
                 "age_group": age_label(patient.date_of_birth)
             })
 
+        # Propagated patients (checked_in from completed sessions of same doctor today)
+        propagated_result = await db.execute(
+            select(Appointment, Patient, User, Session)
+            .join(Patient, Appointment.patient_id == Patient.id)
+            .join(User, Patient.user_id == User.id)
+            .join(Session, Appointment.session_id == Session.id)
+            .where(
+                Session.doctor_id == doctor.id,
+                Session.session_date == date.today(),
+                Session.status == "completed",
+                Appointment.status == "checked_in"
+            ).order_by(Appointment.slot_number)
+        )
+        propagated_rows = propagated_result.all()
+
+        propagated_queue = []
+        for appt, patient, pat_user, sess in propagated_rows:
+            propagated_queue.append({
+                "uhid": patient.uhid,
+                "name": pat_user.full_name,
+                "original_session": f"{sess.start_time}-{sess.end_time}",
+                "original_time": str(appt.slot_time),
+                "status": appt.status,
+                "priority": appt.priority,
+                "age_group": age_label(patient.date_of_birth),
+                "is_emergency": appt.is_emergency,
+                "checked_in_at": str(appt.checked_in_at) if appt.checked_in_at else ""
+            })
+
     return {
         "doctor": doc_user.full_name,
         "session_active": session.status == "active",
@@ -191,7 +220,8 @@ async def get_doctor_queue(doctor_name: str = "", user: dict = Depends(get_curre
         "session_time": f"{session.start_time}-{session.end_time}",
         "normal_queue": normal_queue,
         "emergency_queue": emergency_queue,
-        "booked_queue": booked_queue
+        "booked_queue": booked_queue,
+        "propagated_queue": propagated_queue
     }
 
 

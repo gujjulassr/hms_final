@@ -66,11 +66,21 @@ async def auto_complete_expired_sessions():
             cancelled_count = 0
             propagated_count = 0
 
+            from services.notifications.service import notify_no_show
+            from models.user import User
             for appt, patient in pending:
                 if appt.status == "booked":
                     appt.status = "no_show"
                     patient.risk_score += 20
                     no_show_count += 1
+                    # Send no-show notification
+                    try:
+                        pat_user_r = await db.execute(select(User).where(User.id == patient.user_id))
+                        pat_user = pat_user_r.scalars().first()
+                        if pat_user:
+                            await notify_no_show(pat_user.email, pat_user.full_name, "Doctor", patient.risk_score)
+                    except Exception:
+                        pass  # Don't break scheduler if notification fails
 
                 elif appt.status == "checked_in":
                     if next_session:
