@@ -146,8 +146,11 @@ def render(api_url, headers, role="doctor"):
                             st.rerun()
                     with col4:
                         if st.button("Cancel", key=f"bcan_{p['uhid']}"):
-                            requests.post(f"{api_url}/api/chat/message",
-                                json={"message": f"cancel appointment for {p['uhid']} with {data.get('doctor', '')}"}, headers=headers)
+                            # requests.post(f"{api_url}/api/chat/message",
+                            #     json={"message": f"cancel appointment for {p['uhid']} with {data.get('doctor', '')}"}, headers=headers)
+
+                            requests.post(f"{api_url}/api/doctor/cancel-appointment",
+                                json={"patient_uhid": p["uhid"]}, headers=headers)   
                             st.rerun()
 
     # Auto-refresh

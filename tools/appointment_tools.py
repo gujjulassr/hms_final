@@ -109,10 +109,26 @@ async def book_appointment(patient_uhid: str, doctor_name: str, preferred_time: 
             if result:
                 found_slot, found_position, slot_time = result
                 chosen_session = s
+                #  If preferred time given but got different slot, ask confirmation                                                                                        
+                if preferred_time and str(slot_time) != preferred_time + ":00":                                                                                           
+                    return f"Slot at {preferred_time} is full. Nearest available is {slot_time} on {s.session_date}. Reply 'yes' to book at {slot_time}."                 
+                break    
                 break
 
         if not found_slot:
             return f"No available slots for Dr. {doc_user.full_name} in any session."
+        
+
+        # Check if patient already booked in this session
+        existing_appt = await db.execute(
+            select(Appointment).where(
+                Appointment.session_id == chosen_session.id,
+                Appointment.patient_id == patient.id,
+                Appointment.status.in_(["booked", "checked_in", "in_progress"])
+            )
+        )
+        if existing_appt.scalars().first():
+            return f"Patient {patient_uhid} already has an appointment in this session."
 
         # Step 6: Create appointment
         new_appt = Appointment(
@@ -127,7 +143,14 @@ async def book_appointment(patient_uhid: str, doctor_name: str, preferred_time: 
         )
         db.add(new_appt)
         await log_action(db, patient.user_id, "BOOK", "appointment", new_appt.id, {"uhid": patient_uhid, "doctor": doc_user.full_name, "slot": found_slot, "time": str(slot_time)})
+
+        # Get patient email for notification
+        pat_user_result = await db.execute(select(User).where(User.id == patient.user_id))
+        pat_user = pat_user_result.scalars().first()
         await db.commit()
+
+    if pat_user:
+        await notify_booking(pat_user.email, pat_user.full_name, doc_user.full_name, str(chosen_session.session_date), str(slot_time), patient_uhid)
 
     return f"Appointment booked! Patient: {patient_uhid}, Doctor: {doc_user.full_name}, Date: {chosen_session.session_date}, Time: {slot_time}, Slot: {found_slot}"
 
@@ -232,9 +255,16 @@ async def cancel_appointment(patient_uhid: str, doctor_name: str) -> str:
         if not appt:                                                                                                                                                      
             return "All booked appointments have already passed."
                                                                                                                                                                         
-        appt.status = "cancelled"                                                                                                                                       
+        appt.status = "cancelled"
         patient.risk_score += 10
-        await log_action(db, patient.user_id, "CANCEL", "appointment", appt.id, {"uhid": patient_uhid, "doctor": doc_user.full_name})                                     
-        await db.commit()                                                                                                                                                 
-                                                                                                                                                                        
+        await log_action(db, patient.user_id, "CANCEL", "appointment", appt.id, {"uhid": patient_uhid, "doctor": doc_user.full_name})
+
+        # Get patient email for notification
+        pat_user_result = await db.execute(select(User).where(User.id == patient.user_id))
+        pat_user = pat_user_result.scalars().first()
+        await db.commit()
+
+    if pat_user:
+        await notify_cancellation(pat_user.email, pat_user.full_name, doc_user.full_name, str(session.session_date), str(appt.slot_time))
+
     return f"Appointment cancelled for {patient_uhid} with Dr. {doc_user.full_name} on {session.session_date} at {appt.slot_time}. Risk score +10."  

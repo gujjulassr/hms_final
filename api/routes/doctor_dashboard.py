@@ -655,3 +655,23 @@ async def create_session_api(request: CreateSessionRequest, user: dict = Depends
         await db.commit()
 
     return {"message": f"Session created for {s_date}: {s_start}-{s_end}, {total_slots} slots."}
+
+
+
+
+@router.post("/cancel-appointment")                                                                                                                                       
+async def cancel_appointment_api(request: ActionRequest, user: dict = Depends(get_current_user)):                                                                       
+    async with async_session() as db:                                                                                                                                     
+        result = await db.execute(
+            select(Appointment, Patient)                                                                                                                                  
+            .join(Patient, Appointment.patient_id == Patient.id)
+            .where(Patient.uhid == request.patient_uhid, Appointment.status.in_(["booked", "checked_in"]))
+        )                                                                                                                                                                 
+        row = result.first()
+        if not row:                                                                                                                                                       
+            raise HTTPException(status_code=404, detail="No active appointment found")
+        appt, patient = row                                                                                                                                               
+        appt.status = "cancelled"
+        patient.risk_score += 10                                                                                                                                          
+        await db.commit()
+    return {"message": f"Appointment cancelled for {request.patient_uhid}. Risk score +10."}
