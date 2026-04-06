@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.claude/
+*.pdf
+chroma_db/
+reports/
+HMS_Test_Report.pdf
+HMS_Final_Test_Report.pdf
+test_results.txt
+final_test_results.txt
