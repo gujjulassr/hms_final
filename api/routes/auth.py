@@ -91,3 +91,109 @@ async def register(request: RegisterRequest):
         token = create_token(str(new_user.id), new_user.email, new_user.role)
 
     return TokenResponse(token=token, role="patient", full_name=request.full_name)
+
+
+# ==========================================
+# GOOGLE OAUTH
+# ==========================================
+
+from config.settings import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+from fastapi.responses import RedirectResponse
+import httpx
+
+
+@router.get("/google/url")
+async def google_login_url():
+    """Returns the Google OAuth login URL."""
+    url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
+        "response_type=code&"
+        "scope=openid email profile&"
+        "access_type=offline"
+    )
+    return {"url": url}
+
+
+@router.get("/google/callback")
+async def google_callback(code: str):
+    """Google sends user here after login. Exchange code for user info."""
+
+    # Step 1: Exchange code for tokens
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code"
+            }
+        )
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get Google token")
+        tokens = token_response.json()
+
+        # Step 2: Get user info from Google
+        user_info_response = await client.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"}
+        )
+        if user_info_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+        google_user = user_info_response.json()
+
+    # Step 3: Check if user exists in our database
+    email = google_user["email"]
+    name = google_user.get("name", email)
+    google_id = google_user["id"]
+
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalars().first()
+
+        if not user:
+            # New user — create patient account
+            new_user = User(
+                id=uuid.uuid4(),
+                email=email,
+                phone="",
+                password_hash=hash_password(str(uuid.uuid4())),
+                full_name=name,
+                role="patient",
+                google_id=google_id,
+                is_active=True
+            )
+            db.add(new_user)
+            await db.flush()
+
+            # Generate UHID
+            pat_result = await db.execute(select(Patient).order_by(Patient.uhid.desc()))
+            last = pat_result.scalars().first()
+            if last:
+                num = int(last.uhid.split("-")[-1]) + 1
+            else:
+                num = 1
+            uhid = f"HMS-{datetime.now().year}-{str(num).zfill(5)}"
+
+            new_patient = Patient(
+                id=uuid.uuid4(),
+                user_id=new_user.id,
+                uhid=uhid
+            )
+            db.add(new_patient)
+            await db.commit()
+            user = new_user
+
+        else:
+            # Existing user — update google_id if not set
+            if not user.google_id:
+                user.google_id = google_id
+                await db.commit()
+
+        token = create_token(str(user.id), user.email, user.role)
+
+    # Step 4: Redirect to Streamlit with token
+    return RedirectResponse(url=f"http://localhost:8501?token={token}&role={user.role}&name={user.full_name}")

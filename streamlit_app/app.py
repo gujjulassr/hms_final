@@ -74,8 +74,24 @@ def nav(page):
 # LOGIN PAGE
 # ==========================================
 if not st.session_state.token:
+    # Check if redirected from Google OAuth with token in URL
+    query_params = st.query_params
+    if "token" in query_params:
+        st.session_state.token = query_params["token"]
+        st.session_state.role = query_params.get("role", "patient")
+        st.session_state.full_name = query_params.get("name", "User")
+        st.query_params.clear()
+        st.rerun()
+
     st.title("HMS Hospital")
     st.subheader("Login or Register")
+
+    # Google Sign-in
+    google_res = requests.get(f"{API_URL}/api/auth/google/url")
+    if google_res.status_code == 200:
+        google_url = google_res.json()["url"]
+        st.link_button("Sign in with Google", google_url, use_container_width=True)
+        st.divider()
 
     tab1, tab2 = st.tabs(["Login", "Register"])
 
